@@ -93,6 +93,10 @@ func (redisMgr *RedisManager) getStatusKey(key string) string {
 	return key + "/status"
 }
 
+func (redisMgr *RedisManager) getTempKey(key string) string {
+	return "tmp/" + key
+}
+
 func (redisMgr *RedisManager) Set(key string, str string) error {
 	c := redisMgr.getConnection()
 	defer c.Close()
@@ -210,15 +214,25 @@ func (redisMgr *RedisManager) DelObject(key string) error {
 	c.Do("DEL", key)
 	c.Do("DEL", statusKey)
 	_, err := c.Do("EXEC")
+
 	return err
 }
 
-// TODO
 func (redisMgr *RedisManager) CheckObject(key string) error {
 	c := redisMgr.getConnection()
 	defer c.Close()
 
-	return nil
+	statusKey := redisMgr.getStatusKey(key)
+
+	c.Do("MULTI")
+	c.Do("SET", statusKey, RedisManagerStatusChecked)
+	_, err := c.Do("EXEC")
+
+	return err
+}
+
+func (redisMgr *RedisManager) getStudentKey(key string, id int) string {
+	return fmt.Sprintf("%s/%d", key, id)
 }
 
 func (redisMgr *RedisManager) SetStudents(key string, students []*Student) error {
@@ -229,7 +243,7 @@ func (redisMgr *RedisManager) SetStudents(key string, students []*Student) error
 	for _, student := range students {
 		studentId := student.Id
 		// log.Info(student)
-		studentKey := fmt.Sprintf("%s/%d", key, studentId)
+		studentKey := redisMgr.getStudentKey(key, studentId)
 		bytes, err := json.Marshal(student)
 		if err != nil {
 			log.Error(err.Error())
@@ -255,11 +269,15 @@ func (redisMgr *RedisManager) GetStudents(key string) ([]*Student, error) {
 	}
 	c.Do("MULTI")
 	for _, studentId := range studentIds {
-		studentKey := fmt.Sprintf("%s/%d", key, studentId)
+		studentKey := redisMgr.getStudentKey(key, studentId)
 		c.Do("GET", studentKey)
 		// log.Info(studentKey)
 	}
 	values, err := redis.ByteSlices(c.Do("EXEC"))
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
 	students := make([]*Student, 0, len(values))
 	for _, value := range values {
 		student := &Student{}
@@ -274,6 +292,103 @@ func (redisMgr *RedisManager) GetStudents(key string) ([]*Student, error) {
 	}
 
 	return students, err
+}
+
+func (redisMgr *RedisManager) GetStudent(key string, id int) (*Student, error) {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	studentKey := redisMgr.getStudentKey(key, id)
+	value, err := redis.Bytes(c.Do("GET", studentKey))
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	student := &Student{}
+	err = json.Unmarshal(value, student)
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+
+	return student, nil
+}
+
+func (redisMgr *RedisManager) GetStudentStatus(key string, id int) (int, error) {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	status, err := redis.Int(c.Do("HGET", key, id))
+	if err != nil {
+		log.Error(err.Error())
+		status = RedisManagerStatusError
+	}
+
+	return status, err
+}
+
+func (redisMgr *RedisManager) DelStudents(key string) error {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	studentIds, err := redis.Ints(c.Do("HKEYS", key))
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	c.Do("MULTI")
+	for _, studentId := range studentIds {
+		studentKey := redisMgr.getStudentKey(key, studentId)
+		c.Do("DEL", studentKey)
+	}
+	c.Do("DEL", key)
+	_, err = c.Do("EXEC")
+	if err != nil {
+		log.Error(err.Error())
+	}
+
+	return err
+}
+
+func (redisMgr *RedisManager) DelStudent(key string, id int) error {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	studentKey := redisMgr.getStudentKey(key, id)
+
+	c.Do("MULTI")
+	c.Do("DEL", studentKey)
+	c.Do("HDEL", key, id)
+	_, err := c.Do("EXEC")
+	if err != nil {
+		log.Error(err.Error())
+	}
+
+	return err
+}
+
+func (redisMgr *RedisManager) CheckStudent(key string, id int) error {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	tempKey := redisMgr.getTempKey(key)
+	studentKey := redisMgr.getStudentKey(key, id)
+	studentTempKey := redisMgr.getTempKey(studentKey)
+
+	c.Do("MULTI")
+	c.Do("RENAME", studentKey, studentTempKey)
+	c.Do("SADD", tempKey, id)
+	// c.Do("EXPIRE", studentTempKey, redisMgr.expireTime)
+	// c.Do("EXPIRE", tempKey, redisMgr.expireTime)
+	c.Do("EXPIRE", studentTempKey, 60)
+	c.Do("EXPIRE", tempKey, 60)
+	c.Do("HDEL", key, id)
+	_, err := c.Do("EXEC")
+	if err != nil {
+		log.Error(err.Error())
+	}
+
+	return err
 }
 
 type Student struct {
@@ -302,11 +417,20 @@ func main() {
 	redisMgr := NewRedisManagerWithPool("127.0.0.1", 6379, "", 0, 1, 10, 30*time.Second)
 	redisMgr.SetStudents("students/cqut", students)
 
+	redisMgr.DelStudent("students/cqut", 2)
+
 	queryStudents, _ := redisMgr.GetStudents("students/cqut")
 	log.Info(queryStudents)
 	for _, queryStudent := range queryStudents {
 		log.Info(queryStudent)
 	}
+	redisMgr.CheckStudent("students/cqut", 3)
+
+	log.Info(redisMgr.GetStudentStatus("students/cqut", 1))
+	log.Info(redisMgr.GetStudentStatus("students/cqut", 2))
+	log.Info(redisMgr.GetStudentStatus("students/cqut", 3))
+
+	redisMgr.DelStudents("students/cqut")
 }
 
 func main0() {

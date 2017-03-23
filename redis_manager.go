@@ -221,12 +221,95 @@ func (redisMgr *RedisManager) CheckObject(key string) error {
 	return nil
 }
 
+func (redisMgr *RedisManager) SetStudents(key string, students []*Student) error {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	c.Do("MULTI")
+	for _, student := range students {
+		studentId := student.Id
+		// log.Info(student)
+		studentKey := fmt.Sprintf("%s/%d", key, studentId)
+		bytes, err := json.Marshal(student)
+		if err != nil {
+			log.Error(err.Error())
+			c.Do("DISCARD")
+			return err
+		}
+		c.Do("SET", studentKey, bytes)
+		c.Do("HMSET", key, studentId, RedisManagerStatusUncheck)
+	}
+	_, err := c.Do("EXEC")
+
+	return err
+}
+
+func (redisMgr *RedisManager) GetStudents(key string) ([]*Student, error) {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	studentIds, err := redis.Ints(c.Do("HKEYS", key))
+	if err != nil {
+		log.Error(err.Error())
+		return nil, err
+	}
+	c.Do("MULTI")
+	for _, studentId := range studentIds {
+		studentKey := fmt.Sprintf("%s/%d", key, studentId)
+		c.Do("GET", studentKey)
+		// log.Info(studentKey)
+	}
+	values, err := redis.ByteSlices(c.Do("EXEC"))
+	students := make([]*Student, 0, len(values))
+	for _, value := range values {
+		student := &Student{}
+		// log.Info(value)
+		// log.Info(string(value))
+		err = json.Unmarshal(value, student)
+		if err != nil {
+			log.Error(err.Error())
+			return nil, err
+		}
+		students = append(students, student)
+	}
+
+	return students, err
+}
+
 type Student struct {
 	Id   int
 	Name string
 }
 
 func main() {
+	student1 := &Student{
+		Id:   1,
+		Name: "Ming",
+	}
+	student2 := &Student{
+		Id:   2,
+		Name: "huangzeming",
+	}
+	student3 := &Student{
+		Id:   3,
+		Name: "zeming",
+	}
+	students := make([]*Student, 0)
+	students = append(students, student1)
+	students = append(students, student2)
+	students = append(students, student3)
+
+	redisMgr := NewRedisManagerWithPool("127.0.0.1", 6379, "", 0, 1, 10, 30*time.Second)
+	redisMgr.SetStudents("students/cqut", students)
+
+	queryStudents, _ := redisMgr.GetStudents("students/cqut")
+	log.Info(queryStudents)
+	for _, queryStudent := range queryStudents {
+		log.Info(queryStudent)
+	}
+}
+
+func main0() {
 	redisMgr := NewRedisManagerWithPool("127.0.0.1", 6379, "", 0, 1, 10, 30*time.Second)
 	redisMgr.Set("test", "huangzeming")
 	v, _ := redisMgr.Get("test")

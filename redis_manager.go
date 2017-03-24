@@ -258,6 +258,28 @@ func (redisMgr *RedisManager) SetStudents(key string, students []*Student) error
 	return err
 }
 
+func (redisMgr *RedisManager) SetStudent(key string, student *Student) error {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	studentId := student.Id
+	studentKey := redisMgr.getStudentKey(key, studentId)
+	bytes, err := json.Marshal(student)
+	if err != nil {
+		log.Error(err.Error())
+		return err
+	}
+	c.Do("MULTI")
+	c.Do("HMSET", key, studentId, RedisManagerStatusUncheck)
+	c.Do("SET", studentKey, bytes)
+	_, err = c.Do("EXEC")
+	if err != nil {
+		log.Error(err.Error())
+	}
+
+	return err
+}
+
 func (redisMgr *RedisManager) GetStudents(key string) ([]*Student, error) {
 	c := redisMgr.getConnection()
 	defer c.Close()
@@ -431,6 +453,8 @@ func main() {
 	log.Info(redisMgr.GetStudentStatus("students/cqut", 3))
 
 	redisMgr.DelStudents("students/cqut")
+
+	redisMgr.SetStudent("students/cqut", student1)
 }
 
 func main0() {

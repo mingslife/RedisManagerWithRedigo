@@ -86,7 +86,11 @@ func (redisMgr *RedisManager) init() *redis.Pool {
 }
 
 func (redisMgr *RedisManager) getConnection() redis.Conn {
-	return redisMgr.pool.Get()
+	c := redisMgr.pool.Get()
+	if redisMgr.password != "" {
+		c.Do("AUTH", redisMgr.password)
+	}
+	return c
 }
 
 func (redisMgr *RedisManager) getStatusKey(key string) string {

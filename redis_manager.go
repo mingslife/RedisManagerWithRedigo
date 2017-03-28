@@ -440,7 +440,7 @@ func main() {
 	students = append(students, student2)
 	students = append(students, student3)
 
-	redisMgr := NewRedisManagerWithPool("127.0.0.1", 6379, "", 0, 1, 10, 30*time.Second)
+	redisMgr := NewRedisManagerWithPool("127.0.0.1", 6379, "foobared", 0, 1, 10, 30*time.Second)
 	redisMgr.SetStudents("students/cqut", students)
 
 	redisMgr.DelStudent("students/cqut", 2)

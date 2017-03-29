@@ -340,6 +340,15 @@ func (redisMgr *RedisManager) GetStudent(key string, id int) (*Student, error) {
 	return student, nil
 }
 
+func (redis *RedisManager) GetAllStudents() (map[string][]*Student, error) {
+	c := redisMgr.getConnection()
+	defer c.Close()
+
+	// TODO
+
+	return nil, nil
+}
+
 func (redisMgr *RedisManager) GetStudentStatus(key string, id int) (int, error) {
 	c := redisMgr.getConnection()
 	defer c.Close()

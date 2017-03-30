@@ -235,11 +235,13 @@ func (redisMgr *RedisManager) CheckObject(key string) error {
 	return err
 }
 
-func (redisMgr *RedisManager) getStudentKey(key string, id int) string {
+func (redisMgr *RedisManager) getStudentKey(school string, id int) string {
+	key := "students/" + school
 	return fmt.Sprintf("%s/%d", key, id)
 }
 
-func (redisMgr *RedisManager) SetStudents(key string, students []*Student) error {
+func (redisMgr *RedisManager) SetStudents(school string, students []*Student) error {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -262,7 +264,8 @@ func (redisMgr *RedisManager) SetStudents(key string, students []*Student) error
 	return err
 }
 
-func (redisMgr *RedisManager) SetStudent(key string, student *Student) error {
+func (redisMgr *RedisManager) SetStudent(school string, student *Student) error {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -284,7 +287,8 @@ func (redisMgr *RedisManager) SetStudent(key string, student *Student) error {
 	return err
 }
 
-func (redisMgr *RedisManager) GetStudents(key string) ([]*Student, error) {
+func (redisMgr *RedisManager) GetStudents(school string) ([]*Student, error) {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -320,7 +324,8 @@ func (redisMgr *RedisManager) GetStudents(key string) ([]*Student, error) {
 	return students, err
 }
 
-func (redisMgr *RedisManager) GetStudent(key string, id int) (*Student, error) {
+func (redisMgr *RedisManager) GetStudent(school string, id int) (*Student, error) {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -349,7 +354,8 @@ func (redis *RedisManager) GetAllStudents() (map[string][]*Student, error) {
 	return nil, nil
 }
 
-func (redisMgr *RedisManager) GetStudentStatus(key string, id int) (int, error) {
+func (redisMgr *RedisManager) GetStudentStatus(school string, id int) (int, error) {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -362,7 +368,8 @@ func (redisMgr *RedisManager) GetStudentStatus(key string, id int) (int, error) 
 	return status, err
 }
 
-func (redisMgr *RedisManager) DelStudents(key string) error {
+func (redisMgr *RedisManager) DelStudents(school string) error {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -385,7 +392,8 @@ func (redisMgr *RedisManager) DelStudents(key string) error {
 	return err
 }
 
-func (redisMgr *RedisManager) DelStudent(key string, id int) error {
+func (redisMgr *RedisManager) DelStudent(school string, id int) error {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -402,7 +410,8 @@ func (redisMgr *RedisManager) DelStudent(key string, id int) error {
 	return err
 }
 
-func (redisMgr *RedisManager) CheckStudent(key string, id int) error {
+func (redisMgr *RedisManager) CheckStudent(school string, id int) error {
+	key := "students/" + school
 	c := redisMgr.getConnection()
 	defer c.Close()
 
@@ -450,24 +459,24 @@ func main() {
 	students = append(students, student3)
 
 	redisMgr := NewRedisManagerWithPool("127.0.0.1", 6379, "foobared", 0, 1, 10, 30*time.Second)
-	redisMgr.SetStudents("students/cqut", students)
+	redisMgr.SetStudents("cqut", students)
 
-	redisMgr.DelStudent("students/cqut", 2)
+	redisMgr.DelStudent("cqut", 2)
 
-	queryStudents, _ := redisMgr.GetStudents("students/cqut")
+	queryStudents, _ := redisMgr.GetStudents("cqut")
 	log.Info(queryStudents)
 	for _, queryStudent := range queryStudents {
 		log.Info(queryStudent)
 	}
-	redisMgr.CheckStudent("students/cqut", 3)
+	redisMgr.CheckStudent("cqut", 3)
 
-	log.Info(redisMgr.GetStudentStatus("students/cqut", 1))
-	log.Info(redisMgr.GetStudentStatus("students/cqut", 2))
-	log.Info(redisMgr.GetStudentStatus("students/cqut", 3))
+	log.Info(redisMgr.GetStudentStatus("cqut", 1))
+	log.Info(redisMgr.GetStudentStatus("cqut", 2))
+	log.Info(redisMgr.GetStudentStatus("cqut", 3))
 
-	redisMgr.DelStudents("students/cqut")
+	redisMgr.DelStudents("cqut")
 
-	redisMgr.SetStudent("students/cqut", student1)
+	redisMgr.SetStudent("cqut", student1)
 }
 
 func main0() {
